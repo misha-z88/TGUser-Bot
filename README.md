@@ -24,8 +24,15 @@
 [G4F](https://github.com/techwithanirudh/g4f) (model = gpt-3.5-turbo ) : Не требует API
 
 [ChatGPT](https://chatgpt.com/) (model = gpt-3.5-turbo ) : Надежный
+
  
 
 Установите модель с помощью  ```/set_model <model_name>.```
     
 Перед запуском напишите ```pip install -r requirements txt```
+
+
+
+Бот при первом запуске попросит BOT TOKEN или же ваш номер телефона для входа в аккаунт и введите код потверждения для! Если вы зашли в аккаунт и хотете поменять аккаунт, то удалите файлы mybot.session (все файлы с этим названием) 
+
+***[Поддержать автора](https://www.donationalerts.com/r/adolmi)***
