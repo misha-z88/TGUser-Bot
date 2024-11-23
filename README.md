@@ -28,3 +28,4 @@
 
 Установите модель с помощью  ```/set_model <model_name>.```
     
+Перед запуском напишите ```pip install -r requirements txt```
