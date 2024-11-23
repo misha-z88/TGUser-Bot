@@ -1,81 +1,76 @@
-from g4f import Provider, ChatCompletion, models
-import google.generativeai as genai
+import g4f
 import openai
-import traceback
+import google.generativeai as genai
+from config import GEMINI_API_KEY, OPENAI_API_KEY
 
-# Инициализация пользовательских настроек
-user_choise = {}
+# Настройка Gemini
+genai.configure(api_key=GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel('gemini-pro')
 
-# Инициализация Gemini API 
-genai.configure(api_key='') #API GEMINI!
-model = genai.GenerativeModel("gemini-1.5-flash")
+# Настройка OpenAI
+openai.api_key = OPENAI_API_KEY
 
-# Инициализация OpenAI API
-client_openai = openai.OpenAI( #API META!
-    api_key="",
-    base_url="https://api.sambanova.ai/v1/chat/completions",
-)
-
-def g4f_response(text) -> str:
-    """Обработка запроса через g4f"""
+def gemini_response(prompt):
     try:
-        print(f"[G4F] Получен запрос: {text}")
-        gpt_reply = ChatCompletion.create(
-            model='gpt-35-turbo',
-            provider=Provider.TeachAnything,
-            messages=[{"role": "user", "content": text}]
+        # Генерация ответа с помощью Gemini
+        print("Запрос к Gemini...")
+        response = gemini_model.generate_content(prompt)
+        print("Ответ от Gemini:", response.text)
+        return response.text
+    except Exception as e:
+        # Логирование ошибки и возврат сообщения
+        print(f"Ошибка при использовании Gemini: {e}")
+        return "Произошла ошибка при генерации ответа с использованием Gemini."
+
+def g4f_response(prompt):
+    try:
+        print("Запрос к g4f...")
+        # Выбор провайдера g4f
+        response = g4f.ChatCompletion.create(
+            model="gpt-4-turbo",  # Используем модель GPT-4-Turbo
+            provider=g4f.Provider.Liaobots,  # Используем провайдера Liaobots
+            messages=[{"role": "user", "content": prompt}],
         )
-        if gpt_reply:
-            print(f"[G4F] Ответ: {gpt_reply}")
-            return gpt_reply
-        else:
-            return "G4F не смог сгенерировать ответ."
-    except Exception as e:
-        print(f"[G4F] Ошибка: {e}")
-        print(traceback.format_exc())
-        return f"Ошибка G4F: {e}"
 
-def meta_response(text) -> str:
-    """Обработка запроса через Meta API"""
+        # Печать ответа от g4f для отладки
+        print(f"Ответ от g4f: {response}")
+
+        # Если ответ от g4f это строка, возвращаем его напрямую
+        if isinstance(response, str):
+            return response
+
+        # Если ответ имеет ожидаемую структуру, обрабатываем его
+        if isinstance(response, dict):
+            if 'choices' in response and len(response['choices']) > 0:
+                return response['choices'][0]['message']['content']
+            else:
+                print("Ответ от g4f не содержит ожидаемого формата.")
+                return "Не удалось обработать ответ от g4f."
+        else:
+            print("Ответ от g4f имеет неожиданный формат:", response)
+            return "Не удалось обработать ответ от g4f."
+
+    except AttributeError as e:
+        # Ошибка, если провайдер недоступен
+        print(f"Ошибка: Провайдер недоступен: {e}")
+        return "Произошла ошибка: Провайдер недоступен."
+    except Exception as e:
+        # Логирование и возврат сообщения об ошибке
+        print(f"Ошибка при использовании g4f: {e}")
+        return "Произошла ошибка при генерации ответа с использованием G4F."
+
+def chatgpt_response(prompt):
     try:
-        print(f"[Meta] Получен запрос: {text}")
-        response = client_openai.chat.completions.create(
-            model='Meta-Llama-3.1-8B-Instruct',
-            messages=[{"role": "user", "content": text}],
-            temperature=0.1,
-            top_p=0.1
+        print("Запрос к ChatGPT...")
+        # Генерация ответа с помощью OpenAI (GPT-4)
+        response = openai.ChatCompletion.create(
+            model="gpt-4-turbo",
+            messages=[{"role": "user", "content": prompt}]
         )
-        meta_reply = response.choices[0].message.content if response and response.choices else None
-        if meta_reply:
-            print(f"[Meta] Ответ: {meta_reply}")
-            return meta_reply
-        else:
-            return "Meta не смог сгенерировать ответ."
+        # Возврат ответа от OpenAI
+        print("Ответ от ChatGPT:", response.choices[0].message['content'])
+        return response.choices[0].message['content']
     except Exception as e:
-        print(f"[Meta] Ошибка: {e}")
-        print(traceback.format_exc())
-        return f"Ошибка Meta: {e}"
-
-def gemini_response(text):
-    """Обработка запроса через Gemini API"""
-    try:
-        print(f"[Gemini] Получен запрос: {text}")
-        response = model.generate_content(text)
-        if hasattr(response, 'text') and response.text:
-            print(f"[Gemini] Ответ: {response.text}")
-            return response.text
-        else:
-            return "Gemini не смог сгенерировать ответ."
-    except Exception as e:
-        print(f"[Gemini] Ошибка: {e}")
-        print(traceback.format_exc())
-        return f"Ошибка при генерации ответа: {e}"
-
-def with_reply(func):
-    """Декоратор для проверки, что команда является ответом на сообщение"""
-    async def wrapped(client, message):
-        if not message.reply_to_message:
-            await message.reply("<b>Reply to message is required</b>")
-            return  # Останавливаем выполнение, если условия не выполнены
-        return await func(client, message)
-    return wrapped
+        # Логирование ошибки и возврат сообщения
+        print(f"Ошибка при использовании ChatGPT: {e}")
+        return "Произошла ошибка при генерации ответа с использованием ChatGPT."
