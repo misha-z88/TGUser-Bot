@@ -3,16 +3,14 @@
 
 **Команда**	  ***< значание >***   -      **Описание**
 ```
-/help	- Справка.
-/info	- Информация о пользователе который ввел команду;
-/time	- Показывает текущее время в МСК;
-/weather < город > - Узнать погоду в <город>;
-/set_prefix < символ > - Изменить префикс на < символ > (По умолчанию " / ");
-/set_model < model > - Устанавливает модель ИИ (gemini, g4f, meta);
-/gpt < text > - Спросить у ИИ (< model >) вопрос;
+/help - Справка.
+/time - Текущее время в МСК.
+/info - Информация о пользователе.
+/set_model <model_name> - Установка модели (g4f, gemini, chatgpt).
+/gpt <текст> - Генерация ответа.
+/set_prefix <символ> - Установить новый префикс.
+/weather <город> - Узнать погоду в указанном городе.
 /clear_context - Очистить контекст пользователя.
-
-Вместо </> будет префикс который вы установили!
 ```
 
 Вы можете обновить префикс команды бота, используя /set_prefix <new_prefix>. По умолчанию, ***/.***
@@ -29,11 +27,11 @@
 
  
 
-Установите модель с помощью  ```/set_model <model_name>.```
+Установите модель с помощью  ``/set_model <model_name>.``
     
-Перед запуском напишите ```pip install -r requirements txt```
+Перед запуском напишите ``pip install -r requirements txt``
 
-Еще одна команда которут вы можете добавить для спама в ЛС и в Чаты стикерами
+Еще одна команда которую вы можете добавить для спама в ЛС и в Чаты стикерами
 
 *❗️* ***ВЫ МОЖЕТЕ ПОЛУЧИТЬ БАН ЗА СПАМ В ТЕЛЕГРАММЕ*** *❗️* 
 
@@ -104,6 +102,23 @@ async def stopspam(client, message):
 
 
 ```
+
+*❗️* ***ВЫ МОЖЕТЕ ПОЛУЧИТЬ ТАКУЮ ОШИБКУ ВО ВРЕМЯ ИСПОЛЬЗОВАНИЯ API GEMINI ИЗ-ЗА КАТЕГОРИИ ВОПРОСА СЕКСУАЛЬНОГО и/или НЕЗАКОННОГО ХАРАКТЕРА*** *❗️* 
+
+```
+Oшибка при использовании Gemini: ("Invalid operation: The response.text quick accessor requires the response to contain a valid Part, but none were returned. The candidate's [finish_reason](https://ai.google.dev/api/generate-content#finishreason) is 3. The candidate's safety_ratings are: [category: HARM_CATEGORY_SEXUALLY_EXPLICIT\nprobability: HIGH\n, category: HARM_CATEGORY_HATE_SPEECH\nprobability: NEGLIGIBLE\n, category: HARM_CATEGORY_HARASSMENT\nprobability: NEGLIGIBLE\n, category: HARM_CATEGORY_DANGEROUS_CONTENT\nprobability: NEGLIGIBLE\n].", [category: HARM_CATEGORY_SEXUALLY_EXPLICIT
+probability: HIGH
+, category: HARM_CATEGORY_HATE_SPEECH
+probability: NEGLIGIBLE
+, category: HARM_CATEGORY_HARASSMENT
+probability: NEGLIGIBLE
+, category: HARM_CATEGORY_DANGEROUS_CONTENT
+probability: NEGLIGIBLE
+])
+```
+*Ошибка, которую вы получили, связана с системой безопасности API Gemini (Google Generative AI). Она блокирует ответы, если они содержат или могут быть интерпретированы как опасные или запрещенные темы. В данном случае проблема связана с категорией "сексуально-эксплицитный контент" (HARM_CATEGORY_SEXUALLY_EXPLICIT) с высокой вероятностью.*
+
+
 
 
 Бот при первом запуске попросит BOT TOKEN или же ваш номер телефона для входа в аккаунт и введите код потверждения для! Если вы зашли в аккаунт и хотете поменять аккаунт, то удалите файлы mybot.session (все файлы с этим названием) 
