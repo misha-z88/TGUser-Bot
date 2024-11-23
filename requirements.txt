@@ -1,0 +1,7 @@
+google-generativeai
+g4f
+openai
+json
+pytz
+datetime
+pyrogram
