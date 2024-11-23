@@ -1,6 +1,6 @@
 google-generativeai
 g4f
-openai
+openai==0.28
 json
 pytz
 datetime
