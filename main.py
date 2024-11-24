@@ -374,7 +374,7 @@ async def help_handler(client, message: Message):
 • {prefix}weather Москва
 • {prefix}info @username
 • {prefix}music In The End Linkin Park
-• {prefix}duel @username"""
+"""
 
     await message.reply(help_text)
 
