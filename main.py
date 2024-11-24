@@ -11,7 +11,7 @@
 
 GitHub - https://github.com/mikayilaz 
 
-""" 
+"""
 
 # Importing the JSON library to handle configurations and data storage.
 import json
@@ -45,7 +45,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 app = Client("mybot", api_id=API_ID, api_hash=API_HASH)
 
 # Параметры
-allowed_user_ids = [] # Ваш юзер-ид и тех кому вы хотите дать "админа" в боте
+allowed_user_ids = [5500885543]
 context_file = "context.json"
 prefix_file = "prefix.json"
 AVAILABLE_MODELS = ["g4f", "gemini", "chatgpt"]
@@ -55,7 +55,7 @@ context_cache = {}
 
 # Переменная для контроля спама
 stop_spam_flag = False
-STICKER_ID = ""
+STICKER_ID = "CAACAgIAAxkBAAENNLlnQtTOxwYEq2O876jrkPChkCnw6QACMVkAAjliGEmUE3dUs6L0mTYE"
 WEATHER_URL = "https://api.openweathermap.org/data/2.5/onecall"
 
 # -------------------------------------------------------------------------------------------------
@@ -651,7 +651,7 @@ async def meme_handler(client, message: Message):
 2. Заполнить config.py своими ключами
 
 Формат вывода погоды:
-🌡 ПОГОДА НА СЕГОДНЯ (Город)
+🌡 ПОГОДА НА СЕГОДНЯ (Город)Z
 ⛅️ Текущая погода
 ↖️ Ветер и влажность
 🌤 Прогноз на сегодня
