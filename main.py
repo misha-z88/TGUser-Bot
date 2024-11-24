@@ -45,7 +45,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 app = Client("mybot", api_id=API_ID, api_hash=API_HASH)
 
 # Параметры
-allowed_user_ids = [5500885543]
+allowed_user_ids = []
 context_file = "context.json"
 prefix_file = "prefix.json"
 AVAILABLE_MODELS = ["g4f", "gemini", "chatgpt"]
@@ -55,7 +55,7 @@ context_cache = {}
 
 # Переменная для контроля спама
 stop_spam_flag = False
-STICKER_ID = "CAACAgIAAxkBAAENNLlnQtTOxwYEq2O876jrkPChkCnw6QACMVkAAjliGEmUE3dUs6L0mTYE"
+STICKER_ID = ""
 WEATHER_URL = "https://api.openweathermap.org/data/2.5/onecall"
 
 # -------------------------------------------------------------------------------------------------
@@ -249,6 +249,172 @@ async def clear_downloads_handler(client, message: Message):
             await message.reply(f"❗ Ошибка при очистке: {str(e)}")
     else:
         await message.reply("❌ У вас нет прав для использования этой команды!")
+# -------------------------------------------------------------------------------------------------
+# *** Дуэли ***
+
+
+# Initialize bot instance
+
+# Active duels and scores storage
+active_duels = {}  # Store active duels
+duel_scores = {}   # Store user scores
+
+
+
+@app.on_message(filters.command("duel"))
+async def duel_handler(client, message: Message):
+    if len(message.command) != 2:
+        await message.reply("❗ Использование: /duel @username")
+        return
+
+    challenger = message.from_user.id
+    opponent_username = message.command[1].replace("@", "")
+
+    try:
+        opponent = await client.get_users(opponent_username)
+        opponent_id = opponent.id
+
+        if opponent_id == challenger:
+            await message.reply("❌ Вы не можете вызвать на дуэль самого себя!")
+            return
+
+        if challenger in active_duels or opponent_id in active_duels:
+            await message.reply("❌ Один из участников уже находится в дуэли!")
+            return
+
+        # Create duel invitation
+        active_duels[challenger] = {
+            "opponent": opponent_id,
+            "status": "pending",
+            "timestamp": datetime.now()
+        }
+
+        # Initialize scores if needed
+        duel_scores.setdefault(challenger, {"wins": 0, "losses": 0})
+        duel_scores.setdefault(opponent_id, {"wins": 0, "losses": 0})
+
+        await message.reply(
+            f"⚔️ {message.from_user.first_name} вызывает {opponent.first_name} на дуэль!\n"
+            f"Для принятия введите: /accept_duel\n"
+            f"Для отказа введите: /decline_duel\n"
+            "⏳ У вас есть 60 секунд на ответ!"
+        )
+
+        # Set timeout for duel acceptance
+        await asyncio.sleep(60)
+        if challenger in active_duels and active_duels[challenger]["status"] == "pending":
+            del active_duels[challenger]
+            await message.reply("⌛️ Время на принятие дуэли истекло!")
+
+    except Exception as e:
+        await message.reply(f"❗ Ошибка при создании дуэли: {str(e)}")
+
+@app.on_message(filters.command("accept_duel"))
+async def accept_duel_handler(client, message: Message):
+    responder = message.from_user.id
+    
+    # Find pending duel where this user is the opponent
+    duel = None
+    challenger = None
+    for user_id, duel_info in active_duels.items():
+        if duel_info["opponent"] == responder and duel_info["status"] == "pending":
+            duel = duel_info
+            challenger = user_id
+            break
+
+    if not duel:
+        await message.reply("❌ Нет активных вызовов на дуэль для вас!")
+        return
+
+    # Start duel
+    active_duels[challenger]["status"] = "active"
+    
+    # Add interaction during duel
+    await message.reply(
+        "🔥 Дуэль начинается! Выберите действие:\n"
+        "1️⃣ /aim - Прицелиться\n"
+        "2️⃣ /shoot - Выстрелить\n"
+        "3️⃣ /dodge - Уклониться\n"
+    )
+    
+    # Random outcome
+    winner = random.choice([challenger, responder])
+    loser = responder if winner == challenger else challenger
+
+    # Update scores
+    duel_scores[winner]["wins"] += 1
+    duel_scores[loser]["losses"] += 1
+
+    # Get user names
+    winner_user = await client.get_users(winner)
+    loser_user = await client.get_users(loser)
+
+    # Send result message
+    result_message = (
+        f"⚔️ Результат дуэли:\n"
+        f"🏆 Победитель: {winner_user.first_name}\n"
+        f"💀 Проигравший: {loser_user.first_name}\n\n"
+        f"📊 Статистика {winner_user.first_name}:\n"
+        f"Побед: {duel_scores[winner]['wins']}\n"
+        f"Поражений: {duel_scores[winner]['losses']}\n\n"
+        f"📊 Статистика {loser_user.first_name}:\n"
+        f"Побед: {duel_scores[loser]['wins']}\n"
+        f"Поражений: {duel_scores[loser]['losses']}"
+    )
+    
+    await message.reply(result_message)
+    
+    # Clear active duel
+    del active_duels[challenger]
+
+@app.on_message(filters.command("decline_duel"))
+async def decline_duel_handler(client, message: Message):
+    responder = message.from_user.id
+    
+    # Find pending duel where this user is the opponent
+    duel = None
+    challenger = None
+    for user_id, duel_info in active_duels.items():
+        if duel_info["opponent"] == responder and duel_info["status"] == "pending":
+            duel = duel_info
+            challenger = user_id
+            break
+
+    if not duel:
+        await message.reply("❌ Нет активных вызовов на дуэль для вас!")
+        return
+
+    # Get challenger name
+    challenger_user = await client.get_users(challenger)
+    
+    # Send decline message
+    await message.reply(f"🏳️ {message.from_user.first_name} отказывается от дуэли с {challenger_user.first_name}!")
+    
+    # Clear active duel
+    del active_duels[challenger]
+
+@app.on_message(filters.command("duel_stats"))
+async def duel_stats_handler(client, message: Message):
+    user_id = message.from_user.id
+    if user_id not in duel_scores:
+        await message.reply("📊 У вас пока нет статистики дуэлей!")
+        return
+
+    stats = duel_scores[user_id]
+    total_duels = stats["wins"] + stats["losses"]
+    win_rate = (stats["wins"] / total_duels * 100) if total_duels > 0 else 0
+    
+    stats_message = (
+        f"📊 Статистика дуэлей {message.from_user.first_name}:\n"
+        f"🏆 Победы: {stats['wins']}\n"
+        f"💀 Поражения: {stats['losses']}\n"
+        f"🎯 Процент побед: {win_rate:.1f}%\n"
+        f"📈 Всего дуэлей: {total_duels}"
+    )
+    
+    await message.reply(stats_message)
+
+
 
 
 # -------------------------------------------------------------------------------------------------
@@ -365,7 +531,10 @@ async def help_handler(client, message: Message):
 
 🎮 **Развлечения:**
 {prefix}meme - Получить случайный мем
-
+{prefix}duel @username - Вызвать пользователя на дуэль
+{prefix}accept_duel - Принять вызов на дуэль
+{prefix}decline_duel - Отклонить вызов на дуэль
+{prefix}duel_stats - Посмотреть статистику дуэлей
 
 ⚙️ **Настройки:**
 {prefix}set_prefix <символ> - Установить новый префикс команд
@@ -374,7 +543,7 @@ async def help_handler(client, message: Message):
 • {prefix}weather Москва
 • {prefix}info @username
 • {prefix}music In The End Linkin Park
-"""
+• {prefix}duel @username"""
 
     await message.reply(help_text)
 
