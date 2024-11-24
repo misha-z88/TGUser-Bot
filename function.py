@@ -3,6 +3,8 @@ import openai
 import google.generativeai as genai
 from config import GEMINI_API_KEY, OPENAI_API_KEY
 
+#Файл для работы нейросетей!
+
 # Настройка Gemini
 genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel('gemini-pro')
