@@ -1,437 +1,41 @@
-
 """
-############################################
-#                                          #
-#            ##   USER BOT   ##            #
-#                                          #
-#            V0.2.0. BY MIKAYILAZ          #
-#                                          # 
-#                                          #
-############################################
+╔══════════════════════════════════════╗
+║                                      ║
+║            USER BOT v0.3.0           ║
+║                                      ║
+║         Created by @misha_z88        ║
+║                                      ║
+╚══════════════════════════════════════╝
 
-GitHub - https://github.com/mikayilaz 
-
+GitHub: https://github.com/misha-z88
 """
 
-# Importing the JSON library to handle configurations and data storage.
 import json
-# Importing OS library to manage file and directory operations.
 import os
-# Importing Pytz for timezone handling.
 import pytz
-# Importing Datetime to handle date and time operations.
-from datetime import datetime, timedelta
-# Importing Pyrogram for Telegram bot interactions.
+from datetime import datetime
 from pyrogram import Client, filters
-# Importing Pyrogram for Telegram bot interactions.
 from pyrogram.types import Message
 import requests
 import asyncio
-from function import gemini_response, g4f_response, chatgpt_response
-from config import API_ID, API_HASH
-import random
-from config import WEATHER_API_KEY  
-import yt_dlp
-# Importing OS library to manage file and directory operations.
-from youtubesearchpython import VideosSearch
-# Importing OS library to manage file and directory operations.
-import os
-import asyncio
-# Importing Pyrogram for Telegram bot interactions.
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from config import API_ID, API_HASH, WEATHER_API_KEY
+from google.generativeai import GenerativeModel, configure
+from config import GOOGLE_API_KEY
+import PIL.Image
+from io import BytesIO
+import wikipedia
+import qrcode
 
+configure(api_key=GOOGLE_API_KEY)
+model = GenerativeModel('gemini-pro')
+vision_model = GenerativeModel('gemini-pro-vision')
 
-# Инициализация клиента
 app = Client("mybot", api_id=API_ID, api_hash=API_HASH)
 
-# Параметры
-allowed_user_ids = []
 context_file = "context.json"
 prefix_file = "prefix.json"
-AVAILABLE_MODELS = ["g4f", "gemini", "chatgpt"]
-
-# Кэш для контекста
 context_cache = {}
-
-# Переменная для контроля спама
-stop_spam_flag = False
-STICKER_ID = ""
 WEATHER_URL = "https://api.openweathermap.org/data/2.5/onecall"
-
-# -------------------------------------------------------------------------------------------------
-# *** Поиск музыки ***
-
-
-
-
-# Конфигурация yt-dlp
-ydl_opts = {
-    'format': 'bestaudio/best',
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '192',
-    }],
-    'outtmpl': 'downloads/%(title)s.%(ext)s',
-    'quiet': True,
-    'no_warnings': True,
-    'extract_flat': False,
-    'nocheckcertificate': True,
-    'prefer_ffmpeg': True,
-    'keepvideo': False,
-    'geo_bypass': True,
-}
-
-# Кэш для хранения результатов поиска
-search_results_cache = {}
-
-@app.on_message(filters.command("music"))
-
-# Function: async def music_search_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
-async def music_search_handler(client, message: Message):
-    try:
-        if len(message.command) < 2:
-            await message.reply(
-                "❗ Использование: /music название песни\n"
-                "📝 Пример: /music In The End Linkin Park"
-            )
-            return
-
-        search_query = " ".join(message.command[1:])
-        status_msg = await message.reply("🔍 Ищу музыку...")
-        
-        try:
-            videos_search = VideosSearch(search_query, limit=5)
-            results = videos_search.result()['result']
-        except Exception as search_error:
-            await status_msg.edit_text("❌ Ошибка при поиске. Попробуйте позже.")
-            return
-
-        if not results:
-            await status_msg.edit_text("❌ Ничего не найдено!")
-            return
-
-        search_results_cache[message.from_user.id] = results
-
-        response_text = "🎵 Результаты поиска:\n\n"
-        for idx, video in enumerate(results, 1):
-            duration = video.get('duration', 'N/A')
-            if duration == 'N/A':
-                duration = '⚠️ Длительность неизвестна'
-            
-            channel = video.get('channel', {}).get('name', 'Неизвестный исполнитель')
-            views = video.get('viewCount', {}).get('text', 'N/A')
-            
-            response_text += (
-                f"{idx}. {video['title']}\n"
-                f"👤 {channel} | ⏱ {duration}\n"
-                f"👁 {views}\n\n"
-            )
-        
-        response_text += "💡 Чтобы скачать песню, используйте команду:\n/download номер"
-        await status_msg.edit_text(response_text)
-
-    except Exception as e:
-        await message.reply(f"❗ Произошла ошибка: {str(e)}")
-
-@app.on_message(filters.command("download"))
-
-# Function: async def download_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
-async def download_handler(client, message: Message):
-    try:
-        if len(message.command) != 2:
-            await message.reply("❗ Использование: /download номер")
-            return
-
-        user_id = message.from_user.id
-        if user_id not in search_results_cache:
-            await message.reply(
-                "❌ Сначала выполните поиск с помощью команды /music\n"
-                "🔄 Предыдущие результаты поиска устарели"
-            )
-            return
-
-        try:
-            selection = int(message.command[1])
-            if not (1 <= selection <= len(search_results_cache[user_id])):
-                await message.reply("❌ Неверный номер. Пожалуйста, выберите число от 1 до 5")
-                return
-        except ValueError:
-            await message.reply("❌ Укажите корректный номер")
-            return
-
-        video = search_results_cache[user_id][selection - 1]
-        video_url = f"https://www.youtube.com/watch?v={video['id']}"
-
-        status_msg = await message.reply(
-            f"⏳ Загружаю: {video['title']}\n"
-            "🎵 Пожалуйста, подождите..."
-        )
-
-        # Создаем папку для загрузок
-        os.makedirs('downloads', exist_ok=True)
-
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(video_url, download=True)
-                audio_file = ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
-        except Exception as download_error:
-            await status_msg.edit_text(
-                f"❌ Ошибка при загрузке:\n"
-                f"└ {str(download_error)}\n\n"
-                "🔧 Возможные причины:\n"
-                "- Видео недоступно\n"
-                "- Ограничение по возрасту\n"
-                "- Проблемы с подключением"
-            )
-            return
-
-        try:
-            duration = int(info.get('duration', 0))
-            await client.send_audio(
-                message.chat.id,
-                audio=audio_file,
-                title=info.get('title', 'Unknown'),
-                performer=info.get('uploader', 'Unknown'),
-                duration=duration,
-                caption=(
-                    f"🎵 {info.get('title')}\n"
-                    f"👤 {info.get('uploader')}\n"
-                    f"⏱ {duration//60}:{duration%60:02d}"
-                )
-            )
-            await status_msg.delete()
-        except Exception as send_error:
-            await status_msg.edit_text(f"❌ Ошибка при отправке файла: {str(send_error)}")
-        finally:
-            # Очистка
-            try:
-                os.remove(audio_file)
-                del search_results_cache[user_id]
-            except:
-                pass
-
-    except Exception as e:
-        error_message = str(e)
-        if "ffmpeg" in error_message.lower():
-            await message.reply(
-                "❗️ Отсутствует FFmpeg!\n"
-                "📝 Установите FFmpeg:\n"
-                "- MacOS: brew install ffmpeg\n"
-                "- Ubuntu: sudo apt-get install ffmpeg\n"
-                "- Windows: скачайте с ffmpeg.org"
-            )
-        else:
-            await message.reply(f"❗ Ошибка: {error_message}")
-
-@app.on_message(filters.command("clear_downloads"))
-
-# Function: async def clear_downloads_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
-async def clear_downloads_handler(client, message: Message):
-    if message.from_user.id in allowed_user_ids:
-        try:
-            if os.path.exists('downloads'):
-                for file in os.listdir('downloads'):
-                    try:
-                        os.remove(os.path.join('downloads', file))
-                    except:
-                        continue
-                await message.reply("✅ Папка загрузок очищена!")
-            else:
-                await message.reply("📂 Папка загрузок пуста")
-        except Exception as e:
-            await message.reply(f"❗ Ошибка при очистке: {str(e)}")
-    else:
-        await message.reply("❌ У вас нет прав для использования этой команды!")
-# -------------------------------------------------------------------------------------------------
-# *** Дуэли ***
-
-
-# Initialize bot instance
-
-# Active duels and scores storage
-active_duels = {}  # Store active duels
-duel_scores = {}   # Store user scores
-
-
-
-@app.on_message(filters.command("duel"))
-async def duel_handler(client, message: Message):
-    if len(message.command) != 2:
-        await message.reply("❗ Использование: /duel @username")
-        return
-
-    challenger = message.from_user.id
-    opponent_username = message.command[1].replace("@", "")
-
-    try:
-        opponent = await client.get_users(opponent_username)
-        opponent_id = opponent.id
-
-        if opponent_id == challenger:
-            await message.reply("❌ Вы не можете вызвать на дуэль самого себя!")
-            return
-
-        if challenger in active_duels or opponent_id in active_duels:
-            await message.reply("❌ Один из участников уже находится в дуэли!")
-            return
-
-        # Create duel invitation
-        active_duels[challenger] = {
-            "opponent": opponent_id,
-            "status": "pending",
-            "timestamp": datetime.now()
-        }
-
-        # Initialize scores if needed
-        duel_scores.setdefault(challenger, {"wins": 0, "losses": 0})
-        duel_scores.setdefault(opponent_id, {"wins": 0, "losses": 0})
-
-        await message.reply(
-            f"⚔️ {message.from_user.first_name} вызывает {opponent.first_name} на дуэль!\n"
-            f"Для принятия введите: /accept_duel\n"
-            f"Для отказа введите: /decline_duel\n"
-            "⏳ У вас есть 60 секунд на ответ!"
-        )
-
-        # Set timeout for duel acceptance
-        await asyncio.sleep(60)
-        if challenger in active_duels and active_duels[challenger]["status"] == "pending":
-            del active_duels[challenger]
-            await message.reply("⌛️ Время на принятие дуэли истекло!")
-
-    except Exception as e:
-        await message.reply(f"❗ Ошибка при создании дуэли: {str(e)}")
-
-@app.on_message(filters.command("accept_duel"))
-async def accept_duel_handler(client, message: Message):
-    responder = message.from_user.id
-    
-    # Find pending duel where this user is the opponent
-    duel = None
-    challenger = None
-    for user_id, duel_info in active_duels.items():
-        if duel_info["opponent"] == responder and duel_info["status"] == "pending":
-            duel = duel_info
-            challenger = user_id
-            break
-
-    if not duel:
-        await message.reply("❌ Нет активных вызовов на дуэль для вас!")
-        return
-
-    # Start duel
-    active_duels[challenger]["status"] = "active"
-    
-    # Add interaction during duel
-    await message.reply(
-        "🔥 Дуэль начинается! Выберите действие:\n"
-        "1️⃣ /aim - Прицелиться\n"
-        "2️⃣ /shoot - Выстрелить\n"
-        "3️⃣ /dodge - Уклониться\n"
-    )
-    
-    # Random outcome
-    winner = random.choice([challenger, responder])
-    loser = responder if winner == challenger else challenger
-
-    # Update scores
-    duel_scores[winner]["wins"] += 1
-    duel_scores[loser]["losses"] += 1
-
-    # Get user names
-    winner_user = await client.get_users(winner)
-    loser_user = await client.get_users(loser)
-
-    # Send result message
-    result_message = (
-        f"⚔️ Результат дуэли:\n"
-        f"🏆 Победитель: {winner_user.first_name}\n"
-        f"💀 Проигравший: {loser_user.first_name}\n\n"
-        f"📊 Статистика {winner_user.first_name}:\n"
-        f"Побед: {duel_scores[winner]['wins']}\n"
-        f"Поражений: {duel_scores[winner]['losses']}\n\n"
-        f"📊 Статистика {loser_user.first_name}:\n"
-        f"Побед: {duel_scores[loser]['wins']}\n"
-        f"Поражений: {duel_scores[loser]['losses']}"
-    )
-    
-    await message.reply(result_message)
-    
-    # Clear active duel
-    del active_duels[challenger]
-
-@app.on_message(filters.command("decline_duel"))
-async def decline_duel_handler(client, message: Message):
-    responder = message.from_user.id
-    
-    # Find pending duel where this user is the opponent
-    duel = None
-    challenger = None
-    for user_id, duel_info in active_duels.items():
-        if duel_info["opponent"] == responder and duel_info["status"] == "pending":
-            duel = duel_info
-            challenger = user_id
-            break
-
-    if not duel:
-        await message.reply("❌ Нет активных вызовов на дуэль для вас!")
-        return
-
-    # Get challenger name
-    challenger_user = await client.get_users(challenger)
-    
-    # Send decline message
-    await message.reply(f"🏳️ {message.from_user.first_name} отказывается от дуэли с {challenger_user.first_name}!")
-    
-    # Clear active duel
-    del active_duels[challenger]
-
-@app.on_message(filters.command("duel_stats"))
-async def duel_stats_handler(client, message: Message):
-    user_id = message.from_user.id
-    if user_id not in duel_scores:
-        await message.reply("📊 У вас пока нет статистики дуэлей!")
-        return
-
-    stats = duel_scores[user_id]
-    total_duels = stats["wins"] + stats["losses"]
-    win_rate = (stats["wins"] / total_duels * 100) if total_duels > 0 else 0
-    
-    stats_message = (
-        f"📊 Статистика дуэлей {message.from_user.first_name}:\n"
-        f"🏆 Победы: {stats['wins']}\n"
-        f"💀 Поражения: {stats['losses']}\n"
-        f"🎯 Процент побед: {win_rate:.1f}%\n"
-        f"📈 Всего дуэлей: {total_duels}"
-    )
-    
-    await message.reply(stats_message)
-
-
-
-
-# -------------------------------------------------------------------------------------------------
-# *** Работа с контекстом ***
-
-# Функция для получения текущего времени в МСК
-
-# Function: def get_time_in_msk():
-# Description: Add a description here for the function's purpose.
-
-def get_time_in_msk():
-    return datetime.now(pytz.timezone("Europe/Moscow")).strftime("%Y-%m-%d %H:%M:%S")
-
-# Загрузка контекста с использованием кэша
-
-# Function: def load_context():
-# Description: Add a description here for the function's purpose.
 
 def load_context():
     global context_cache
@@ -443,48 +47,21 @@ def load_context():
             context_cache = {}
     return context_cache
 
-# Сохранение контекста с обновлением кэша
-
-# Function: def save_context(context):
-# Description: Add a description here for the function's purpose.
-
 def save_context(context):
     global context_cache
     context_cache = context
     with open(context_file, "w", encoding="utf-8") as f:
         json.dump(context, f, ensure_ascii=False, indent=4)
 
-# Обновление контекста пользователя
-
-# Function: def update_user_context(user_id, message):
-# Description: Add a description here for the function's purpose.
-
-def update_user_context(user_id, message):
+def update_user_context(user_id, role, message):
     context = load_context()
-    user_id_str = str(user_id)  # Преобразуем ID в строку для JSON
+    user_id_str = str(user_id)
     if user_id_str not in context:
-        context[user_id_str] = {"messages": [], "model": "gemini"}
-    context[user_id_str]["messages"].append(message)
-    if len(context[user_id_str]["messages"]) > 10:
-        context[user_id_str]["messages"].pop(0)
+        context[user_id_str] = []
+    context[user_id_str].append({"role": role, "content": message})
+    if len(context[user_id_str]) > 10:
+        context[user_id_str].pop(0)
     save_context(context)
-
-# Получение текущей модели пользователя
-
-# Function: def get_user_model(user_id):
-# Description: Add a description here for the function's purpose.
-
-def get_user_model(user_id):
-    context = load_context()
-    return context.get(str(user_id), {}).get("model", "gemini")
-
-# -------------------------------------------------------------------------------------------------
-# *** Работа с префиксом ***
-
-# Загрузка префикса
-
-# Function: def load_prefix():
-# Description: Add a description here for the function's purpose.
 
 def load_prefix():
     if os.path.exists(prefix_file):
@@ -492,68 +69,210 @@ def load_prefix():
             return json.load(f).get("prefix", "/")
     return "/"
 
-# Сохранение префикса
-
-# Function: def save_prefix(prefix):
-# Description: Add a description here for the function's purpose.
-
 def save_prefix(prefix):
     with open(prefix_file, "w", encoding="utf-8") as f:
         json.dump({"prefix": prefix}, f, ensure_ascii=False, indent=4)
 
-# -------------------------------------------------------------------------------------------------
-# *** Команды бота ***
+def format_message(title, content):
+    return f"""
+╭─「 {title} 」
+│
+{content.replace('\\n', '\\n│ ')}
+│
+╰────────────"""
+
+@app.on_message(filters.command("start"))
+async def start_handler(client, message: Message):
+    prefix = load_prefix()
+    welcome_text = format_message("Добро пожаловать!", f"""
+Я - многофункциональный User-бот с AI!
+
+🤖 Основные возможности:
+• Интеграция с Google Gemini Pro
+• Анализ изображений
+• Помощь с домашними заданиями
+• Погода, время и многое другое
+
+📝 Используйте {prefix}help для просмотра всех команд
+
+👨‍💻 GitHub: https://github.com/misha-z88
+📢 Telegram: @misha_z88
+""")
+    await message.reply(welcome_text)
 
 @app.on_message(filters.command("help"))
-
-# Function: async def help_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
 async def help_handler(client, message: Message):
     prefix = load_prefix()
-    help_text = f"""
-🤖 **Доступные команды:**
+    help_text = format_message("Доступные команды", f"""
+🔍 Основные команды:
+• {prefix}help - Это сообщение
+• {prefix}time - Мировое время
+• {prefix}info - Информация о пользователе
+• {prefix}weather - Погода в городе
 
-🔍 **Основные команды:**
-{prefix}help - Показать это сообщение
-{prefix}time - Показать время в разных городах мира
-{prefix}info <user_id|username> - Информация о пользователе
-{prefix}weather <город> - Узнать погоду в указанном городе
+🤖 AI команды:
+• {prefix}ai - Запрос к Gemini AI
+• {prefix}image - Анализ изображения
+• {prefix}homework - Помощь с заданиями
+• {prefix}clear_context - Очистка контекста
 
-🎵 **Музыка:**
-{prefix}music <название> - Поиск музыки
-{prefix}download <номер> - Скачать песню по номеру из результатов поиска
+🛠 Инструменты:
+• {prefix}qr - Создать QR-код
+• {prefix}wiki - Поиск в Wikipedia
+• {prefix}translate - Перевод текста
+• {prefix}calc - Калькулятор
+• {prefix}chat_info - Информация о чате
+• {prefix}get_users - Список пользователей
+• {prefix}purge - Удаление сообщений
+• {prefix}download - Скачать медиа
 
-🤖 **AI команды:**
-{prefix}set_model <model_name> - Установка модели AI (g4f, gemini, chatgpt)
-{prefix}gpt <текст> - Генерация ответа от AI
-{prefix}clear_context - Очистить контекст пользователя
+🎮 Развлечения:
+• {prefix}meme - Случайный мем
+• {prefix}poll - Создать опрос
 
-🎮 **Развлечения:**
-{prefix}meme - Получить случайный мем
-{prefix}duel @username - Вызвать пользователя на дуэль
-{prefix}accept_duel - Принять вызов на дуэль
-{prefix}decline_duel - Отклонить вызов на дуэль
-{prefix}duel_stats - Посмотреть статистику дуэлей
+⚙️ Настройки:
+• {prefix}set_prefix - Изменить префикс
 
-⚙️ **Настройки:**
-{prefix}set_prefix <символ> - Установить новый префикс команд
-
-💡 **Примеры использования:**
+💡 Примеры:
 • {prefix}weather Москва
-• {prefix}info @username
-• {prefix}music In The End Linkin Park
-• {prefix}duel @username"""
+• {prefix}ai Расскажи о квантовой физике
+• {prefix}homework Реши уравнение: 2x + 5 = 15""")
 
     await message.reply(help_text)
 
+@app.on_message(filters.command("weather"))
+async def weather_handler(client, message: Message):
+    try:
+        if len(message.command) < 2:
+            await message.reply(
+                format_message("Ошибка",
+                    "❗ Укажите город\n"
+                    "Пример: /weather Москва"
+                )
+            )
+            return
+
+        city = message.command[1]
+        
+        geo_response = requests.get(
+            "http://api.openweathermap.org/geo/1.0/direct",
+            params={
+                "q": city,
+                "limit": 1,
+                "appid": WEATHER_API_KEY
+            }
+        )
+        geo_data = geo_response.json()
+
+        if not geo_data:
+            await message.reply(
+                format_message("Ошибка",
+                    "❗ Город не найден\n"
+                    "Проверьте правильность написания"
+                )
+            )
+            return
+
+        lat, lon = geo_data[0]["lat"], geo_data[0]["lon"]
+        
+        weather_response = requests.get(
+            "https://api.openweathermap.org/data/2.5/weather",
+            params={
+                "lat": lat,
+                "lon": lon,
+                "appid": WEATHER_API_KEY,
+                "units": "metric",
+                "lang": "ru"
+            }
+        )
+        weather_data = weather_response.json()
+
+        temp = round(weather_data["main"]["temp"])
+        feels_like = round(weather_data["main"]["feels_like"])
+        description = weather_data["weather"][0]["description"]
+        humidity = weather_data["main"]["humidity"]
+        wind_speed = weather_data["wind"]["speed"]
+        
+        weather_text = format_message(f"Погода в {city}", f"""
+🌡 Температура: {temp}°C
+🌡 Ощущается как: {feels_like}°C
+☁️ {description.capitalize()}
+💧 Влажность: {humidity}%
+💨 Ветер: {wind_speed} м/с""")
+
+        await message.reply(weather_text)
+
+    except Exception as e:
+        await message.reply(
+            format_message("Ошибка",
+                f"❗ Произошла ошибка: {str(e)}"
+            )
+        )
+
+@app.on_message(filters.command("qr"))
+async def qr_handler(client, message: Message):
+    try:
+        if len(message.command) < 2:
+            await message.reply("❗ Использование: /qr текст")
+            return
+
+        text = " ".join(message.command[1:])
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(text)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        bio = BytesIO()
+        img.save(bio, 'PNG')
+        bio.seek(0)
+        
+        await message.reply_photo(
+            bio,
+            caption=format_message("QR Code", f"Создан для: {text[:50]}...")
+        )
+    except Exception as e:
+        await message.reply(f"❗ Ошибка: {str(e)}")
+
+@app.on_message(filters.command("wiki"))
+async def wiki_handler(client, message: Message):
+    try:
+        if len(message.command) < 2:
+            await message.reply("❗ Использование: /wiki запрос")
+            return
+
+        query = " ".join(message.command[1:])
+        wikipedia.set_lang("ru")
+        result = wikipedia.summary(query, sentences=5)
+        
+        await message.reply(
+            format_message("Wikipedia", f"🔍 Запрос: {query}\n\n{result}")
+        )
+    except Exception as e:
+        await message.reply(f"❗ Ошибка: {str(e)}")
+
+@app.on_message(filters.command("poll"))
+async def poll_handler(client, message: Message):
+    try:
+        args = message.text.split("\n")
+        if len(args) < 3:
+            await message.reply(
+                "❗ Использование:\n/poll Вопрос\nВариант 1\nВариант 2\n..."
+            )
+            return
+
+        question = args[0].replace("/poll ", "")
+        options = args[1:]
+        
+        await message.reply_poll(
+            question,
+            options,
+            is_anonymous=False
+        )
+    except Exception as e:
+        await message.reply(f"❗ Ошибка: {str(e)}")
+
 @app.on_message(filters.command("time"))
-
-# Function: async def time_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
 async def time_handler(client, message: Message):
-    # Dictionary of city timezones
     city_timezones = {
         "баку": "Asia/Baku",
         "москва": "Europe/Moscow",
@@ -577,103 +296,94 @@ async def time_handler(client, message: Message):
             current_time = datetime.now(tz)
             time_info.append(f"🌍 {city.capitalize()}: {current_time.strftime('%H:%M:%S')}")
         
-        # Join all times with newlines
-        response = "⏰ Текущее время в городах:\n\n" + "\n".join(time_info)
+        response = format_message("Мировое время", "\n".join(time_info))
         await message.reply(response)
     except Exception as e:
         await message.reply(f"❗ Ошибка при получении времени: {str(e)}")
 
-@app.on_message(filters.command("info"))
-
-# Function: async def info_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
-async def info_handler(client, message: Message):
+@app.on_message(filters.command("ai"))
+async def ai_handler(client, message: Message):
     try:
-        args = message.text.split(maxsplit=1)
-        user_id = message.from_user.id
+        if len(message.command) < 2:
+            await message.reply("❗ Использование: /ai <ваш запрос>")
+            return
 
-        if len(args) > 1:
-            query = args[1]
-            try:
-                user_id = int(query)
-            except ValueError:
-                user = await client.get_users(query)
-                user_id = user.id
-
-        user = await client.get_users(user_id)
-        chat_member = await client.get_chat_member(message.chat.id, user_id)
-
-        # Сбор информации о пользователе
-        language_code = user.language_code if user.language_code else 'Не указан'
-        bio = getattr(user, 'bio', 'Нет биографии')
-        status = chat_member.status
-        joined_date = chat_member.joined_date.strftime('%Y-%m-%d %H:%M:%S') if chat_member.joined_date else 'Не указана'
-
-        # Формируем текст с информацией
-        info_text = f"""
-👤 **Информация о пользователе:**
-
-📌 **Основная информация:**
-• ID: `{user.id}`
-• Имя: {user.first_name}
-• Фамилия: {user.last_name or 'Не указана'}
-• Username: @{user.username or 'Не указан'}
-
-🌍 **Дополнительно:**
-• Язык: {language_code}
-• Бот: {'Да' if user.is_bot else 'Нет'}
-• Биография: {bio}
-
-📊 **Статус в чате:**
-• Роль: {status}
-• Администратор: {'Да' if status == 'administrator' else 'Нет'}
-• Владелец: {'Да' if status == 'creator' else 'Нет'}
-• Участник: {'Да' if status == 'member' else 'Нет'}
-
-📅 **Даты:**
-• Дата вступления: {joined_date}
-"""
-        try:
-            created_at = user.date.strftime('%Y-%m-%d %H:%M:%S') if user.date else 'Не указана'
-            info_text += f"• Дата регистрации: {created_at}"
-        except AttributeError:
-            info_text += "• Дата регистрации: Не указана"
-
-        await message.reply(info_text)
-
+        user_query = " ".join(message.command[1:])
+        user_id = str(message.from_user.id)
+        
+        context = load_context()
+        user_context = context.get(user_id, [])
+        
+        messages = []
+        for msg in user_context:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        
+        messages.append({"role": "user", "content": user_query})
+        
+        response = model.generate_content(user_query)
+        ai_response = response.text
+        
+        update_user_context(user_id, "user", user_query)
+        update_user_context(user_id, "assistant", ai_response)
+        
+        await message.reply(ai_response)
+        
     except Exception as e:
-        await message.reply(f"❗ Ошибка при получении информации: {str(e)}")
+        await message.reply(f"❗ Ошибка при обработке запроса: {str(e)}")
 
-@app.on_message(filters.command("set_model"))
+@app.on_message(filters.command("image") & filters.photo)
+async def image_handler(client, message: Message):
+    try:
+        if not message.caption:
+            await message.reply("❗ Добавьте описание к изображению")
+            return
 
-# Function: async def set_model_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
+        photo = message.photo.file_id
+        file_path = await client.download_media(photo)
+        
+        img = PIL.Image.open(file_path)
+        response = vision_model.generate_content([message.caption, img])
+        
+        os.remove(file_path)
+        await message.reply(response.text)
+        
+    except Exception as e:
+        await message.reply(f"❗ Ошибка при обработке изображения: {str(e)}")
 
-async def set_model_handler(client, message: Message):
-    args = message.text.split()
-    if len(args) != 2:
-        await message.reply(f"❗ Укажите модель: {', '.join(AVAILABLE_MODELS)}")
-        return
-    
-    model = args[1].lower()
-    if model not in AVAILABLE_MODELS:
-        await message.reply(f"❗ Неверная модель. Доступные модели: {', '.join(AVAILABLE_MODELS)}")
-        return
-    
-    context = load_context()
-    user_id = str(message.from_user.id)
-    if user_id not in context:
-        context[user_id] = {"messages": []}
-    context[user_id]["model"] = model
-    save_context(context)
-    await message.reply(f"✅ Модель установлена: {model}")
+@app.on_message(filters.command("homework"))
+async def homework_handler(client, message: Message):
+    try:
+        if message.photo:
+            if not message.caption:
+                await message.reply("❗ Добавьте описание задачи к фотографии")
+                return
+                
+            photo = message.photo.file_id
+            file_path = await client.download_media(photo)
+            
+            img = PIL.Image.open(file_path)
+            response = vision_model.generate_content([
+                "Помоги решить эту задачу. Объясни решение подробно, шаг за шагом: " + message.caption,
+                img
+            ])
+            
+            os.remove(file_path)
+            await message.reply(response.text)
+            
+        elif len(message.command) > 1:
+            query = " ".join(message.command[1:])
+            response = model.generate_content(
+                "Помоги решить эту задачу. Объясни решение подробно, шаг за шагом: " + query
+            )
+            await message.reply(response.text)
+            
+        else:
+            await message.reply("❗ Отправьте фото задачи с описанием или текст задачи")
+            
+    except Exception as e:
+        await message.reply(f"❗ Ошибка при обработке запроса: {str(e)}")
 
 @app.on_message(filters.command("clear_context"))
-
-# Function: async def clear_context_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
 async def clear_context_handler(client, message: Message):
     try:
         user_id = str(message.from_user.id)
@@ -688,346 +398,146 @@ async def clear_context_handler(client, message: Message):
     except Exception as e:
         await message.reply(f"❗ Ошибка при очистке контекста: {str(e)}")
 
-@app.on_message(filters.command("set_prefix"))
-
-# Function: async def set_prefix_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
-async def set_prefix_handler(client, message: Message):
-    args = message.text.split()
-    if len(args) != 2:
-        await message.reply("❗ Укажите новый префикс. Пример: /set_prefix !")
-        return
-    
-    new_prefix = args[1]
-    if len(new_prefix) != 1:
-        await message.reply("❗ Префикс должен быть одним символом")
-        return
-    
-    save_prefix(new_prefix)
-    await message.reply(f"✅ Установлен новый префикс: {new_prefix}")
-
-# -------------------------------------------------------------------------------------------------
-# *** Спам-атаки ***
-
-# Спам-атака
-@app.on_message(filters.command("spamattack"))
-
-# Function: async def spamattack(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
-async def spamattack(client, message: Message):
-    global stop_spam_flag
-    if message.from_user.id not in allowed_user_ids:
-        await message.reply("❗ У вас нет прав для использования этой команды.")
-        return
-
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        await message.reply("❗ Укажите количество сообщений, например: /spamattack 5")
-        return
-
+@app.on_message(filters.command("chat_info"))
+async def chat_info_handler(client, message: Message):
     try:
-        count = int(args[1].strip())
-        if count <= 0:
-            await message.reply("❗ Количество сообщений должно быть больше нуля.")
-            return
-
-        stop_spam_flag = False
-        await message.reply(f"Начинаю спамить {count} сообщений!")
-
-        for i in range(count):
-            if stop_spam_flag:
-                await message.reply("⚠️ Спам остановлен.")
-                return
-            await client.send_sticker(message.chat.id, STICKER_ID)
-        await message.reply("✅ Спам завершён!")
-    except ValueError:
-        await message.reply("❗ Укажите корректное число.")
-
-# Остановка спама
-@app.on_message(filters.command("stopspam"))
-
-# Function: async def stopspam(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
-async def stopspam(client, message: Message):
-    global stop_spam_flag
-    if message.from_user.id not in allowed_user_ids:
-        await message.reply("❗ У вас нет прав для использования этой команды.")
-        return
-    stop_spam_flag = True
-    await message.reply("⛔ Спам будет остановлен.")
-
-# -------------------------------------------------------------------------------------------------
-# *** Генерация ответа ИИ ***
-
-# Генерация ответа от ИИ
-
-# Function: async def get_ai_response(model, message, user_id):
-# Description: Add a description here for the function's purpose.
-
-async def get_ai_response(model, message, user_id):
-    try:
-        context = load_context()
-        user_context = context.get(str(user_id), {}).get("messages", [])
-        full_message = "\n".join(user_context) + f"\n{message}"
-        
-        if model == "g4f":
-            return await asyncio.to_thread(g4f_response, full_message)
-        elif model == "gemini":
-            return await asyncio.to_thread(gemini_response, full_message)
-        elif model == "chatgpt":
-            return await asyncio.to_thread(chatgpt_response, full_message)
-        return "Неизвестная модель."
-    except Exception as e:
-        print(f"Ошибка в get_ai_response: {e}")
-        return "Произошла ошибка при генерации ответа."
-
-# -------------------------------------------------------------------------------------------------
-# *** Получение мемов ***
-
-MEME_API_URL = "https://meme-api.com/gimme"
-
-@app.on_message(filters.command("meme"))
-
-# Function: async def meme_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
-async def meme_handler(client, message: Message):
-    try:
-        response = requests.get(MEME_API_URL)
-        data = response.json()
-
-        # Проверяем, что URL мемов существует
-        if data.get("url"):
-            await message.reply_photo(data["url"])
+        if len(message.command) < 2:
+            chat = message.chat
         else:
-            await message.reply("❗ Не удалось загрузить мем. Попробуйте позже.")
+            chat_username = message.command[1].replace("@", "")
+            chat = await client.get_chat(chat_username)
+        
+        info = format_message("Информация о чате", f"""
+📊 Основная информация:
+• ID: {chat.id}
+• Тип: {chat.type}
+• Название: {chat.title if chat.title else 'Н/Д'}
+• Юзернейм: {chat.username if chat.username else 'Н/Д'}
+• Описание: {chat.description if chat.description else 'Н/Д'}
+• Количество участников: {chat.members_count if hasattr(chat, 'members_count') else 'Н/Д'}
+• Создан: {chat.date if hasattr(chat, 'date') else 'Н/Д'}
+""")
+        await message.reply(info)
     except Exception as e:
-        await message.reply(f"❗ Ошибка при получении мема: {str(e)}")
+        await message.reply(f"❗ Ошибка: {str(e)}")
 
-
-
-# -------------------------------------------------------------------------------------------------
-# *** Погода ***
-
-"""
-Как использовать:
-1. Получить API ключи:
-   - OpenWeatherMap API (https://openweathermap.org/api)
-   - Telegram API (https://my.telegram.org/apps)
-2. Заполнить config.py своими ключами
-
-Формат вывода погоды:
-🌡 ПОГОДА НА СЕГОДНЯ (Город)Z
-⛅️ Текущая погода
-↖️ Ветер и влажность
-🌤 Прогноз на сегодня
-☀️ Прогноз на завтра
-☁️ Прогноз на послезавтра
-"""
-
-@app.on_message(filters.command("weather"))
-
-# Function: async def weather_handler(client, message: Message):
-# Description: Add a description here for the function's purpose.
-
-async def weather_handler(client, message: Message):
-    """
-    Обработчик команды /weather
-    Использование: /weather Город
-    Пример: /weather Баку
-    """
-    # Проверка наличия названия города
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        await message.reply(
-            "❗ Укажите город\n"
-            "Пример: /weather Баку\n"
-            "🌍 Поддерживаются города по всему миру"
-        )
-        return
-
-    city = args[1].strip()
-    
-    # URL endpoints для API запросов
-    BASE_URL = "http://api.openweathermap.org/data/2.5"
-    GEO_URL = "http://api.openweathermap.org/geo/1.0/direct"
-    
-    # Общие параметры для всех запросов
-    base_params = {
-        "appid": WEATHER_API_KEY,
-        "units": "metric",
-        "lang": "ru"
-    }
-
+@app.on_message(filters.command("purge"))
+async def purge_handler(client, message: Message):
     try:
-        # 1. Получаем координаты города
-        geo_response = requests.get(GEO_URL, params={
-            **base_params,
-            "q": city,
-            "limit": 1
-        })
-        geo_response.raise_for_status()
-        geo_data = geo_response.json()
+        if len(message.command) != 2:
+            await message.reply("❗ Использование: /purge количество_сообщений")
+            return
+            
+        count = int(message.command[1])
+        if count > 1000:
+            await message.reply("❗ Максимальное количество сообщений для удаления: 1000")
+            return
+            
+        messages_to_delete = []
+        async for msg in client.get_chat_history(message.chat.id, limit=count):
+            if msg.from_user and msg.from_user.id == client.me.id:
+                messages_to_delete.append(msg.id)
+                
+        await client.delete_messages(message.chat.id, messages_to_delete)
+        status_msg = await message.reply(f"✅ Удалено {len(messages_to_delete)} сообщений")
+        await asyncio.sleep(3)
+        await status_msg.delete()
+        
+    except Exception as e:
+        await message.reply(f"❗ Ошибка: {str(e)}")
 
-        if not geo_data:
+@app.on_message(filters.command("get_users"))
+async def get_users_handler(client, message: Message):
+    try:
+        if not message.chat.id:
+            await message.reply("❗ Эта команда работает только в чатах")
+            return
+            
+        users_info = []
+        async for member in client.get_chat_members(message.chat.id):
+            user = member.user
+            users_info.append(f"• {user.first_name} ({user.id})")
+            if len(users_info) >= 20: 
+                break
+                
+        response = format_message("Пользователи чата", "\n".join(users_info))
+        await message.reply(response)
+        
+    except Exception as e:
+        await message.reply(f"❗ Ошибка: {str(e)}")
+
+@app.on_message(filters.command("download"))
+async def download_handler(client, message: Message):
+    try:
+        if not message.reply_to_message:
+            await message.reply("❗ Ответьте на сообщение с медиафайлом")
+            return
+            
+        reply = message.reply_to_message
+        
+        if reply.photo:
+            path = await client.download_media(reply.photo.file_id)
+            media_type = "фото"
+        elif reply.video:
+            path = await client.download_media(reply.video.file_id)
+            media_type = "видео"
+        elif reply.document:
+            path = await client.download_media(reply.document.file_id)
+            media_type = "файл"
+        elif reply.audio:
+            path = await client.download_media(reply.audio.file_id)
+            media_type = "аудио"
+        else:
+            await message.reply("❗ Неподдерживаемый тип медиафайла")
+            return
+            
+        await message.reply(
+            format_message("Загрузка завершена", 
+                f"✅ {media_type.capitalize()} сохранен в: {path}"
+            )
+        )
+        
+    except Exception as e:
+        await message.reply(f"❗ Ошибка: {str(e)}")
+
+@app.on_message(filters.command("set_prefix"))
+async def set_prefix_handler(client, message: Message):
+    try:
+        if len(message.command) != 2:
             await message.reply(
-                "❗ Город не найден\n"
-                "Проверьте правильность написания города\n"
-                "Пример: /weather Баку"
+                format_message("Ошибка",
+                    "❗ Укажите новый префикс. Пример: /set_prefix !"
+                )
             )
             return
-
-        lat, lon = geo_data[0]["lat"], geo_data[0]["lon"]
-
-        # 2. Получаем текущую погоду
-        current_response = requests.get(f"{BASE_URL}/weather", params={
-            **base_params,
-            "lat": lat,
-            "lon": lon
-        })
-        current_response.raise_for_status()
-        current = current_response.json()
-
-        # 3. Получаем прогноз погоды
-        forecast_response = requests.get(f"{BASE_URL}/forecast", params={
-            **base_params,
-            "lat": lat,
-            "lon": lon
-        })
-        forecast_response.raise_for_status()
-        forecast = forecast_response.json()
-
-        # Форматируем текущую погоду
-        current_temp = round(current["main"]["temp"])
-        current_desc = current["weather"][0]["description"]
-        wind_speed = current["wind"]["speed"]
-        wind_deg = current["wind"]["deg"]
-        humidity = current["main"]["humidity"]
-
-        # Определяем направление ветра
-
-# Function: def get_wind_direction(degrees):
-# Description: Add a description here for the function's purpose.
-
-        def get_wind_direction(degrees):
-            directions = ["↑", "↗️", "→", "↘️", "↓", "↙️", "←", "↖️"]
-            index = round(degrees / 45) % 8
-            return directions[index]
-
-        wind_direction = get_wind_direction(wind_deg)
-
-        # Структурируем прогноз по дням и времени суток
-        forecasts = {}
-        for item in forecast["list"]:
-            dt = datetime.fromtimestamp(item["dt"])
-            date = dt.strftime("%Y-%m-%d")
-            hour = dt.hour
-            
-            if date not in forecasts:
-                forecasts[date] = {
-                    "night": [], # 00-06
-                    "morning": [], # 06-12
-                    "day": [], # 12-18
-                    "evening": [] # 18-00
-                }
-            
-            temp = round(item["main"]["temp"])
-            desc = item["weather"][0]["description"]
-            
-            if 0 <= hour < 6:
-                forecasts[date]["night"].append((temp, desc))
-            elif 6 <= hour < 12:
-                forecasts[date]["morning"].append((temp, desc))
-            elif 12 <= hour < 18:
-                forecasts[date]["day"].append((temp, desc))
-            else:
-                forecasts[date]["evening"].append((temp, desc))
-
-        # Формируем сообщение
-        message_text = f"🌡 ПОГОДА НА СЕГОДНЯ ({city})\n"
-        message_text += f"⛅️ Сейчас: +{current_temp}° {current_desc}\n"
-        message_text += f"Ветер: {wind_direction} {wind_speed:.2f} м/с, влажность: {humidity}%\n\n"
-
-        # Добавляем прогноз по дням
-        dates = list(forecasts.keys())
         
-        # Сегодня
-        if dates:
-            today = dates[0]
-            today_data = forecasts[today]
-            if today_data["evening"]:
-                temp, desc = today_data["evening"][0]
-                message_text += f"Cегодня\n🌤 Вечером: +{temp}..+{temp}°, {desc}\n\n"
-
-        # Завтра
-        if len(dates) > 1:
-            tomorrow = dates[1]
-            tomorrow_data = forecasts[tomorrow]
-            message_text += "Завтра\n"
-            
-            for period, emoji in [
-                ("night", "🌤"),
-                ("morning", "☀️"),
-                ("day", "☀️"),
-                ("evening", "⛅️")
-            ]:
-                if tomorrow_data[period]:
-                    temp, desc = tomorrow_data[period][0]
-                    period_name = {
-                        "night": "Ночью",
-                        "morning": "Утром",
-                        "day": "Днём",
-                        "evening": "Вечером"
-                    }[period]
-                    message_text += f"{emoji} {period_name}: +{temp}..+{temp}°, {desc}\n"
-            message_text += "\n"
-
-        # Послезавтра
-        if len(dates) > 2:
-            day_after = dates[2]
-            after_data = forecasts[day_after]
-            next_date = datetime.strptime(day_after, "%Y-%m-%d").strftime("%d.%m.%Y")
-            message_text += f"{next_date}\n"
-            
-            for period, emoji in [
-                ("night", "☁️"),
-                ("morning", "⛅️"),
-                ("day", "☁️")
-            ]:
-                if after_data[period]:
-                    temp, desc = after_data[period][0]
-                    period_name = {
-                        "night": "Ночью",
-                        "morning": "Утром",
-                        "day": "Днём"
-                    }[period]
-                    message_text += f"{emoji} {period_name}: +{temp}..+{temp}°, {desc}\n"
-
-        await message.reply(message_text)
-
-    except requests.exceptions.RequestException as e:
-        error_message = (
-            "❗ Ошибка при запросе погоды\n"
-            f"Причина: {str(e)}\n"
-            "Попробуйте позже или проверьте название города"
+        new_prefix = message.command[1]
+        if len(new_prefix) != 1:
+            await message.reply(
+                format_message("Ошибка",
+                    "❗ Префикс должен быть одним символом"
+                )
+            )
+            return
+        
+        save_prefix(new_prefix)
+        await message.reply(
+            format_message("Успех",
+                f"✅ Установлен новый префикс: {new_prefix}"
+            )
         )
-        await message.reply(error_message)
     except Exception as e:
-        error_message = (
-            "❗ Непредвиденная ошибка\n"
-            f"Причина: {str(e)}\n"
-            "Пожалуйста, сообщите об ошибке разработчику"
-        )
-        await message.reply(error_message)
+        await message.reply(f"❗ Ошибка: {str(e)}")
 
-
-
-
-
-# Запуск клиента
 if __name__ == "__main__":
-    print("Бот запущен. V0.2.0. By Mikayilaz")
+    print("""
+╔══════════════════════════════════════╗
+║                                      ║
+║         USER BOT v0.3.0              ║
+║         Starting...                  ║
+║                                      ║
+║         by @misha_z88                ║
+║                                      ║
+╚══════════════════════════════════════╝
+    """)
     app.run()
