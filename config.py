@@ -1,5 +1,9 @@
-API_ID = ""  # Замените на ваш API_ID
-API_HASH = ""  # Замените на ваш API_HASH
-OPENAI_API_KEY = ""  # Замените на ваш OpenAI ключ
-GEMINI_API_KEY = "" # Замените на ваш Gemini ключ
-WEATHER_API_KEY = "" # Замените на ваш ключ API для погоды
+# Получите API_ID и API_HASH в https://my.telegram.org/apps
+API_ID = "your_api_id"
+API_HASH = "your_api_hash"
+
+# Получите API_KEY в https://makersuite.google.com/app/apikey
+GOOGLE_API_KEY = "your_google_api_key"
+
+# Получите API_KEY в https://openweathermap.org/api
+WEATHER_API_KEY = "your_weather_api_key" 
