@@ -63,7 +63,7 @@ class SQLiteDB:
             data (Dict[str, str]): Словарь с данными для обновления.
             conditions (List[Tuple[str, str]]): Список условий для фильтрации данных.
         """
-        set_str = ', '.join(f'{key} = "{value}"' for key, value in data.items())
+        set_str = ', '.join(f'{key} = "{value}"' for key, value in data.ite ms())
         condition_str = ' AND '.join(f'{key} = "{value}"' for key, value in conditions)
         query = f'UPDATE {table_name} SET {set_str} WHERE {condition_str}'
         self.cursor.execute(query)
