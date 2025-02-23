@@ -1,9 +1,8 @@
-pyrogram==2.0.106
-tgcrypto==1.2.2
-pytz==2023.3
-requests==2.31.0
-yt-dlp==2023.10.07
-youtubesearchpython==1.6.6
-openai==0.27.8
-google-generativeai==0.2.0
-g4f==0.3.2
+pyrogram>=2.0.106
+tgcrypto>=1.2.5
+pytz>=2024.1
+requests>=2.31.0
+pillow>=10.2.0
+google-generativeai>=0.3.2
+qrcode>=7.4.2
+wikipedia-api>=0.6.0
